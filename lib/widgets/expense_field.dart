@@ -69,7 +69,7 @@ class _ManualExpenseFieldState extends State<ManualExpenseField> {
                 labelText: 'اسم المصروف',
                 prefixIcon: const Icon(Icons.label),
                 filled: true,
-                fillColor: Colors.grey[100],
+                fillColor: Colors.blueGrey[900],
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8.0),
                   borderSide: BorderSide.none,
@@ -91,7 +91,7 @@ class _ManualExpenseFieldState extends State<ManualExpenseField> {
                 labelText: 'القيمة',
                 prefixIcon: const Icon(Icons.attach_money),
                 filled: true,
-                fillColor: Colors.grey[100],
+                fillColor: Colors.blueGrey[900],
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8.0),
                   borderSide: BorderSide.none,
