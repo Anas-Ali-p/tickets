@@ -10,6 +10,7 @@ import 'dart:io';
 import '../models/daily_record.dart';
 import '../controllers/database_controller.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:device_info_plus/device_info_plus.dart';
 
 class RecordsPage extends StatelessWidget {
   const RecordsPage({super.key});
@@ -89,7 +90,7 @@ class RecordsPage extends StatelessWidget {
     DateTime? endDate;
     double? totalValue;
     String selectedField = 'grocery';
-    List<Map<String, dynamic>> recordsDetails = []; // لتخزين التفاصيل
+    List<Map<String, dynamic>> recordsDetails = [];
 
     final Map<String, String> fields = {
       'البقالة': 'grocery',
@@ -97,6 +98,8 @@ class RecordsPage extends StatelessWidget {
       'أنس': 'anas',
       'ماجد': 'majed',
       'الحوري': 'alhouri',
+      'هيثم': 'hetham',
+      'وايت': 'white',
       'التذاكر': 'tickets',
     };
 
@@ -113,122 +116,121 @@ class RecordsPage extends StatelessWidget {
                   children: [
                     DropdownButton<String>(
                       value: fields.keys.firstWhere(
-                          (key) => fields[key] == selectedField,
+                          (k) => fields[k] == selectedField,
                           orElse: () => 'البقالة'),
-                      onChanged: (String? newValue) {
-                        setState(() {
-                          selectedField = fields[newValue!]!;
-                          totalValue = null;
-                          recordsDetails.clear();
-                        });
-                      },
-                      items: fields.keys
-                          .map<DropdownMenuItem<String>>((String value) {
+                      items: fields.keys.map((String value) {
                         return DropdownMenuItem<String>(
                           value: value,
                           child: Text(value),
                         );
                       }).toList(),
+                      onChanged: (String? newValue) {
+                        setState(() {
+                          selectedField = fields[newValue]!;
+                          totalValue = null;
+                          recordsDetails = [];
+                        });
+                      },
                     ),
                     const SizedBox(height: 16),
                     ListTile(
                       title: const Text('تاريخ البداية'),
                       trailing: const Icon(Icons.calendar_today),
                       onTap: () async {
-                        final selectedDate = await showDatePicker(
+                        final selected = await showDatePicker(
                           context: context,
                           initialDate: startDate ?? DateTime.now(),
                           firstDate: DateTime(2000),
-                          lastDate: DateTime(2100),
+                          lastDate: DateTime.now(),
                         );
-                        if (selectedDate != null) {
+                        if (selected != null) {
                           setState(() {
-                            startDate = selectedDate;
+                            startDate = selected;
                             totalValue = null;
-                            recordsDetails.clear();
+                            recordsDetails = [];
                           });
                         }
                       },
                     ),
-                    if (startDate != null)
-                      Text(
-                          'التاريخ المحدد: ${DateFormat('yyyy-MM-dd').format(startDate!)}'),
-                    const SizedBox(height: 16),
                     ListTile(
                       title: const Text('تاريخ النهاية'),
                       trailing: const Icon(Icons.calendar_today),
                       onTap: () async {
-                        final selectedDate = await showDatePicker(
+                        final selected = await showDatePicker(
                           context: context,
                           initialDate: endDate ?? DateTime.now(),
-                          firstDate: DateTime(2000),
-                          lastDate: DateTime(2100),
+                          firstDate: startDate ?? DateTime(2000),
+                          lastDate: DateTime.now(),
                         );
-                        if (selectedDate != null) {
+                        if (selected != null) {
                           setState(() {
-                            endDate = selectedDate;
+                            endDate = selected;
                             totalValue = null;
-                            recordsDetails.clear();
+                            recordsDetails = [];
                           });
                         }
                       },
                     ),
-                    if (endDate != null)
-                      Text(
-                          'التاريخ المحدد: ${DateFormat('yyyy-MM-dd').format(endDate!)}'),
                     const SizedBox(height: 16),
-                    if (totalValue != null) ...[
-                      Text(
-                        'إجمالي ${fields.keys.firstWhere((key) => fields[key] == selectedField)}: ${totalValue!.toStringAsFixed(2)}',
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                    ],
                     ElevatedButton(
                       onPressed: () async {
                         if (startDate == null) {
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
-                                content: Text('الرجاء تحديد تاريخ البداية')),
+                                content: Text('يجب تحديد تاريخ البداية')),
                           );
                           return;
                         }
 
-                        final end = endDate ?? startDate!;
+                        final endDateToUse = endDate ?? DateTime.now();
                         final records = await dbController.getAllRecords();
+
                         final filtered = records.where((r) {
                           final date = DateTime.parse(r.date);
-                          return date.isAfter(startDate!
-                                  .subtract(const Duration(days: 1))) &&
-                              date.isBefore(end.add(const Duration(days: 1)));
+                          return date.isAfter(
+                                  startDate!.subtract(Duration(days: 1))) &&
+                              date.isBefore(
+                                  endDateToUse.add(Duration(days: 1)));
                         }).toList();
 
                         double total = 0;
-                        List<Map<String, dynamic>> details = [];
+                        recordsDetails = filtered
+                            .where((r) {
+                              final value = r.toMap()[selectedField] ?? 0.0;
+                              return value > 0;
+                            })
+                            .map((r) => {
+                                  'date': r.date,
+                                  'value': r.toMap()[selectedField] ?? 0.0
+                                })
+                            .toList();
 
-                        for (var r in filtered) {
-                          final value = r.toMap()[selectedField] ?? 0.0;
-                          total += value;
-                          details.add({
-                            'date': r.date,
-                            'value': value,
-                          });
-                        }
+                        total = recordsDetails.fold(
+                            0, (sum, item) => sum + item['value']);
 
                         setState(() {
                           totalValue = total;
-                          recordsDetails = details;
                         });
                       },
                       child: const Text('حساب الإجمالي'),
                     ),
+                    if (totalValue != null) ...[
+                      const SizedBox(height: 16),
+                      Text(
+                        'الإجمالي: ${totalValue!.toStringAsFixed(2)}',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.blueAccent,
+                        ),
+                      ),
+                    ],
                     if (recordsDetails.isNotEmpty) ...[
                       const SizedBox(height: 16),
-                      const Text('التفاصيل:',
-                          style: TextStyle(fontWeight: FontWeight.bold)),
+                      const Text(
+                        'التفاصيل:',
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
                       const SizedBox(height: 8),
                       SizedBox(
                         height: 200,
@@ -236,10 +238,25 @@ class RecordsPage extends StatelessWidget {
                           shrinkWrap: true,
                           itemCount: recordsDetails.length,
                           itemBuilder: (context, index) {
-                            return ListTile(
-                              title: Text(recordsDetails[index]['date']),
-                              trailing: Text(recordsDetails[index]['value']
-                                  .toStringAsFixed(2)),
+                            return Container(
+                              margin: EdgeInsets.symmetric(vertical: 4),
+                              decoration: BoxDecoration(
+                                color: Colors.blueGrey[800],
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: ListTile(
+                                title: Text(
+                                  recordsDetails[index]['date'],
+                                  style: TextStyle(color: Colors.white),
+                                ),
+                                trailing: Text(
+                                  '${recordsDetails[index]['value'].toStringAsFixed(2)}',
+                                  style: TextStyle(
+                                    color: Colors.amber,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
                             );
                           },
                         ),
@@ -337,6 +354,53 @@ class RecordsPage extends StatelessWidget {
   }
 
   Future<bool> _requestStoragePermission(BuildContext context) async {
+    try {
+      // للإصدارات القديمة (أقل من أندرويد 10)
+      if (Platform.isAndroid &&
+          await DeviceInfoPlugin()
+              .androidInfo
+              .then((info) => info.version.sdkInt < 29)) {
+        return true; // تخطي الطلب في الإصدارات القديمة
+      }
+
+      // للإصدارات الحديثة
+      final status = await Permission.storage.status;
+      if (status.isGranted) return true;
+
+      final result = await Permission.storage.request();
+      if (result.isGranted) return true;
+
+      // إذا رفض المستخدم
+      if (context.mounted) {
+        await showDialog(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('مطلوب إذن التخزين'),
+            content: const Text('الرجاء منح الإذن يدوياً من إعدادات التطبيق'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('إلغاء'),
+              ),
+              TextButton(
+                onPressed: () async {
+                  Navigator.pop(ctx);
+                  await openAppSettings();
+                },
+                child: const Text('فتح الإعدادات'),
+              ),
+            ],
+          ),
+        );
+      }
+      return false;
+    } catch (e) {
+      debugPrint('Error requesting permission: $e');
+      return true; // افترض الإذن في حالة الخطأ للإصدارات القديمة
+    }
+  }
+
+  Future<bool> _requestStoragePermission2(BuildContext context) async {
     if (await Permission.manageExternalStorage.isGranted) {
       return true;
     }
@@ -368,44 +432,6 @@ class RecordsPage extends StatelessWidget {
       );
     }
     return false;
-  }
-
-  Future<bool> _requestStoragePermission2(BuildContext context) async {
-    // حالة الأذونات الحالية
-    var status = await Permission.storage.status;
-
-    if (!status.isGranted) {
-      // طلب الأذونات بطريقة ودية
-      status = await Permission.storage.request();
-
-      if (!status.isGranted) {
-        if (context.mounted) {
-          await showDialog(
-            context: context,
-            builder: (ctx) => AlertDialog(
-              title: const Text('مطلوب إذن التخزين'),
-              content: const Text(
-                  'التطبيق يحتاج إلى إذن الوصول إلى التخزين لحفظ النسخ الاحتياطية'),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(ctx),
-                  child: const Text('رفض'),
-                ),
-                TextButton(
-                  onPressed: () async {
-                    Navigator.pop(ctx);
-                    status = await Permission.storage.request();
-                  },
-                  child: const Text('موافقة'),
-                ),
-              ],
-            ),
-          );
-        }
-        return false;
-      }
-    }
-    return true;
   }
 
   Widget _buildRecordItem(DailyRecord record, DatabaseController dbController,
