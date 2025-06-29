@@ -312,29 +312,39 @@ class RecordsPage extends StatelessWidget {
     }
   }
 
-  // Add this new method
   Future<void> _restoreDatabaseFromDevice(
     BuildContext context,
     DatabaseController dbController,
   ) async {
     try {
-      // طلب الإذن أولاً
       if (!await _requestStoragePermission(context)) return;
 
       final result = await FilePicker.platform.pickFiles();
       if (result == null || result.files.isEmpty) return;
 
-      // إغلاق الاتصال الحالي
-      await dbController.close();
-
-      // استبدال الملف
+      // 1. احفظ المسار الحالي للقاعدة
       final currentDbPath = await dbController.databasePath;
-      await File(result.files.single.path!).copy(currentDbPath);
 
-      // إعادة فتح الاتصال
-      await dbController.database;
+      // 2. أغلق الاتصال بشكل آمن
+      try {
+        await dbController.close();
+      } catch (e) {
+        debugPrint('Error closing DB: $e');
+      }
 
+      // 3. انسخ الملف الاحتياطي
+      final backupFile = File(result.files.single.path!);
+      await backupFile.copy(currentDbPath);
+
+      // 4. أعيد تهيئة المتحكم بقاعدة البيانات
+      final newDbController = DatabaseController();
+      await newDbController.database; // إعادة فتح الاتصال
+
+      // 5. تحديث الـ Provider بالمتغير الجديد إن لزم الأمر
       if (context.mounted) {
+        Provider.of<DatabaseController>(context, listen: false).close();
+        // قد تحتاج لإعادة تهيئة الـ Provider حسب بنية تطبيقك
+
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('تم الاستعادة بنجاح')),
         );
@@ -347,56 +357,43 @@ class RecordsPage extends StatelessWidget {
     } catch (e) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('فشل الاستعادة: ${e}')),
+          SnackBar(content: Text('فشل الاستعادة: ${e.toString()}')),
         );
       }
+      debugPrint('Restore error: $e');
     }
   }
 
   Future<bool> _requestStoragePermission(BuildContext context) async {
     try {
-      // للإصدارات القديمة (أقل من أندرويد 10)
-      if (Platform.isAndroid &&
-          await DeviceInfoPlugin()
-              .androidInfo
-              .then((info) => info.version.sdkInt < 29)) {
-        return true; // تخطي الطلب في الإصدارات القديمة
+      if (Platform.isAndroid) {
+        final androidInfo = await DeviceInfoPlugin().androidInfo;
+
+        // للإصدارات القديمة (أقل من 10)
+        if (androidInfo.version.sdkInt < 29) return true;
+
+        // للإصدارات 10-12
+        if (androidInfo.version.sdkInt <= 32) {
+          final status = await Permission.storage.status;
+          if (status.isGranted) return true;
+
+          final result = await Permission.storage.request();
+          return result.isGranted;
+        }
+
+        // للإصدارات 13+ (يحتاج إذن MEDIA بدلاً من STORAGE)
+        if (androidInfo.version.sdkInt >= 33) {
+          final photosStatus = await Permission.photos.status;
+          if (photosStatus.isGranted) return true;
+
+          final result = await Permission.photos.request();
+          return result.isGranted;
+        }
       }
-
-      // للإصدارات الحديثة
-      final status = await Permission.storage.status;
-      if (status.isGranted) return true;
-
-      final result = await Permission.storage.request();
-      if (result.isGranted) return true;
-
-      // إذا رفض المستخدم
-      if (context.mounted) {
-        await showDialog(
-          context: context,
-          builder: (ctx) => AlertDialog(
-            title: const Text('مطلوب إذن التخزين'),
-            content: const Text('الرجاء منح الإذن يدوياً من إعدادات التطبيق'),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(ctx),
-                child: const Text('إلغاء'),
-              ),
-              TextButton(
-                onPressed: () async {
-                  Navigator.pop(ctx);
-                  await openAppSettings();
-                },
-                child: const Text('فتح الإعدادات'),
-              ),
-            ],
-          ),
-        );
-      }
-      return false;
+      return true;
     } catch (e) {
-      debugPrint('Error requesting permission: $e');
-      return true; // افترض الإذن في حالة الخطأ للإصدارات القديمة
+      debugPrint('Permission error: $e');
+      return false;
     }
   }
 

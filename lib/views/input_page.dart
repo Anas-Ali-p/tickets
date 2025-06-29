@@ -19,6 +19,10 @@ class _InputPageState extends State<InputPage> {
   void initState() {
     super.initState();
     focusNodes = List.generate(13, (index) => FocusNode());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final controller = Provider.of<InputController>(context, listen: false);
+      controller.loadLastRecord();
+    });
   }
 
   @override
@@ -38,6 +42,10 @@ class _InputPageState extends State<InputPage> {
           IconButton(
             icon: Icon(Icons.history, color: Colors.blue[900]),
             onPressed: () => Navigator.pushNamed(context, '/records'),
+          ),
+          IconButton(
+            icon: const Icon(Icons.bar_chart),
+            onPressed: () => Navigator.pushNamed(context, '/reports'),
           ),
         ],
       ),
@@ -103,6 +111,9 @@ class _InputPageState extends State<InputPage> {
   }
 
   Widget _buildBookInfoSection(InputController controller) {
+    if (controller.isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
     return ExpansionTile(
       leading: const Icon(Icons.book, color: Colors.white),
       title: const Text('معلومات الدفاتر',
@@ -399,6 +410,10 @@ class _NumberFieldState extends State<NumberField> {
       child: TextFormField(
         focusNode: focusNodes[focusIndex],
         controller: _controller,
+        onChanged: (value) {
+          final numValue = double.tryParse(value) ?? widget.value;
+          widget.onChanged(numValue);
+        },
         style: const TextStyle(color: Colors.white),
         decoration: InputDecoration(
           hintStyle: TextStyle(

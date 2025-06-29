@@ -277,4 +277,27 @@ class InputController with ChangeNotifier {
       notifyListeners();
     }
   }
+
+  bool isLoading = false;
+
+  Future<void> loadLastRecord() async {
+    isLoading = true;
+    notifyListeners();
+
+    try {
+      final dbController = DatabaseController();
+      final records = await dbController.getAllRecords();
+
+      if (records.isNotEmpty) {
+        preSale = records.first.remainingTickets;
+      } else {
+        preSale = 0;
+      }
+    } catch (e) {
+      debugPrint('Error loading last record: $e');
+    } finally {
+      isLoading = false;
+      notifyListeners();
+    }
+  }
 }

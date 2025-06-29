@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 import 'package:provider/provider.dart';
+import 'package:tickets/views/methonly_reports_page.dart';
 
 import 'controllers/database_controller.dart';
 
@@ -88,6 +89,10 @@ class MyApp extends StatelessWidget {
             textDirection: TextDirection.rtl, child: InputPage()),
         '/records': (context) => const Directionality(
             textDirection: TextDirection.rtl, child: RecordsPage()),
+        '/reports': (context) => const Directionality(
+              textDirection: TextDirection.rtl,
+              child: MonthlyReportsPage(),
+            ),
       },
       debugShowCheckedModeBanner: false,
       locale: const Locale('ar'),
